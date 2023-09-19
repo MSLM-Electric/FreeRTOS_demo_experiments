@@ -56,6 +56,7 @@
 /* FreeRTOS.org includes. */
 #include "FreeRTOS.h"
 #include "task.h"
+#include "timers.h"
 
 /* Demo includes. */
 #include "supporting_functions.h"
@@ -63,24 +64,55 @@
 /* Used as a loop counter to create a very crude delay. */
 #define mainDELAY_LOOP_COUNT		( 0xffffff )
 
+/* The number of the simulated interrupt used in this example.  Numbers 0 to 2
+are used by the FreeRTOS Windows port itself, so 3 is the first number available
+to the application. */
+#define mainINTERRUPT_NUMBER	3
+
+#define ONE_SHOT_TIMER 0
+#define PERIODIC_TIMER 1
+
 /* The task functions. */
-void vTask1( void *pvParameters );
-void vTask2( void *pvParameters );
+void vPacketTimeoutTask( void *pvParameters );
+void vPacketSendRecvStartProcessTask( void *pvParameters );
+/* The software timer used to turn the backlight off. */
+static TimerHandle_t xSNTP_RXTimeoutHandle = NULL;
+static TimerHandle_t xTransmitHandle = NULL;
+
+/* The service routine for the (simulated) interrupt.  This is the interrupt
+that the task will be synchronized with. */
+static uint32_t ulExampleInterruptHandler(void);
+static void sntpRXtimer_callback(TimerHandle_t timer);
+static void transmitTimer_callback(TimerHandle_t timer);
 
 /*-----------------------------------------------------------*/
 
 int main( void )
 {
 	/* Create one of the two tasks. */
-	xTaskCreate(	vTask1,		/* Pointer to the function that implements the task. */
-					"Task 1",	/* Text name for the task.  This is to facilitate debugging only. */
+	xTaskCreate(vPacketTimeoutTask,		/* Pointer to the function that implements the task. */
+					"PacketTimeout Task",	/* Text name for the task.  This is to facilitate debugging only. */
 					1000,		/* Stack depth - most small microcontrollers will use much less stack than this. */
 					NULL,		/* We are not using the task parameter. */
 					1,			/* This task will run at priority 1. */
 					NULL );		/* We are not using the task handle. */
 
 	/* Create the other task in exactly the same way. */
-	xTaskCreate( vTask2, "Task 2", 1000, NULL, 1, NULL );
+	xTaskCreate(vPacketSendRecvStartProcessTask, "PacketSendRecvStartProcess Task", 1000, NULL, 1, NULL );
+	xSNTP_RXTimeoutHandle = xTimerCreate((char *)"SNTP_RecvTimer", 200, ONE_SHOT_TIMER, &xSNTP_RXTimeoutHandle, sntpRXtimer_callback);
+	xTransmitHandle = xTimerCreate((char*)"TransmitTimer", 1000, PERIODIC_TIMER, 0, transmitTimer_callback);
+	if (xSNTP_RXTimeoutHandle == NULL) {
+		; //bad
+	}else{
+		xTimerStop(xSNTP_RXTimeoutHandle, portMAX_DELAY);
+	}
+	/* Install the handler for the software interrupt.  The syntax necessary
+		to do this is dependent on the FreeRTOS port being used.  The syntax
+		shown here can only be used with the FreeRTOS Windows port, where such
+		interrupts are only simulated. */
+	vPortSetInterruptHandler(mainINTERRUPT_NUMBER, ulExampleInterruptHandler);
+	xTimerStart(xSNTP_RXTimeoutHandle, 0);
+	xTimerStart(xTransmitHandle, 0);
 
 	/* Start the scheduler to start the tasks executing. */
 	vTaskStartScheduler();	
@@ -94,9 +126,9 @@ int main( void )
 }
 /*-----------------------------------------------------------*/
 
-void vTask1( void *pvParameters )
+void vPacketTimeoutTask( void *pvParameters )
 {
-const char *pcTaskName = "Task 1 is running\r\n";
+const char *pcTaskName = "Task PacketTimeout is running\r\n";
 volatile uint32_t ul;
 
 	/* As per most tasks, this task is implemented in an infinite loop. */
@@ -106,19 +138,15 @@ volatile uint32_t ul;
 		vPrintString( pcTaskName );
 
 		/* Delay for a period. */
-		for( ul = 0; ul < mainDELAY_LOOP_COUNT; ul++ )
-		{
-			/* This loop is just a very crude delay implementation.  There is
-			nothing to do in here.  Later exercises will replace this crude
-			loop with a proper delay/sleep function. */
-		}
+		vTaskDelay(50);
+		//xTimerReset(xSNTP_RXTimeoutHandle, 0);
 	}
 }
 /*-----------------------------------------------------------*/
 
-void vTask2( void *pvParameters )
+void vPacketSendRecvStartProcessTask( void *pvParameters )
 {
-const char *pcTaskName = "Task 2 is running\r\n";
+const char *pcTaskName = "Task PacketSendRecvStartProcess is running\r\n";
 volatile uint32_t ul;
 
 	/* As per most tasks, this task is implemented in an infinite loop. */
@@ -127,14 +155,53 @@ volatile uint32_t ul;
 		/* Print out the name of this task. */
 		vPrintString( pcTaskName );
 
-		/* Delay for a period. */
-		for( ul = 0; ul < mainDELAY_LOOP_COUNT; ul++ )
-		{
-			/* This loop is just a very crude delay implementation.  There is
-			nothing to do in here.  Later exercises will replace this crude
-			loop with a proper delay/sleep function. */
-		}
+		vTaskDelay(50);
 	}
 }
 
+static uint32_t ulExampleInterruptHandler(void)
+{
+	BaseType_t xHigherPriorityTaskWoken;
 
+	/* The xHigherPriorityTaskWoken parameter must be initialized to pdFALSE as
+	it will get set to pdTRUE inside the interrupt safe API function if a
+	context switch is required. */
+	xHigherPriorityTaskWoken = pdFALSE;
+
+	/* 'Give' the semaphore to unblock the task. */
+	//xSemaphoreGiveFromISR(xBinarySemaphore, &xHigherPriorityTaskWoken);
+
+	/* Pass the xHigherPriorityTaskWoken value into portYIELD_FROM_ISR().  If
+	xHigherPriorityTaskWoken was set to pdTRUE inside xSemaphoreGiveFromISR()
+	then calling portYIELD_FROM_ISR() will request a context switch.  If
+	xHigherPriorityTaskWoken is still pdFALSE then calling
+	portYIELD_FROM_ISR() will have no effect.  The implementation of
+	portYIELD_FROM_ISR() used by the Windows port includes a return statement,
+	which is why this function does not explicitly return a value. */
+	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+static void sntpRXtimer_callback(TimerHandle_t timer)
+{
+	if (timer != NULL) {
+		void* timHandle;
+		timHandle = pvTimerGetTimerID(timer);
+		if (timHandle) {
+			vPrintString("SNTP Timer ring!\n");
+		}
+	}
+	//else
+		//;//bad!
+}
+
+static void transmitTimer_callback(TimerHandle_t timer)
+{
+	vPrintString("transmitting!\n");
+	xTimerStart(xSNTP_RXTimeoutHandle, 0);
+	//xTimerReset(xSNTP_RXTimeoutHandle, 0); //alternative
+}
+
+int CreateSomeAnotherTasks(uint8_t tasksQnty)
+{
+	return 0;
+}

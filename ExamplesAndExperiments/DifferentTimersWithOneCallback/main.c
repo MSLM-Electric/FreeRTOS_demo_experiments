@@ -78,12 +78,23 @@ void vPacketSendRecvStartProcessTask( void *pvParameters );
 /* The software timer used to turn the backlight off. */
 static TimerHandle_t xSNTP_RXTimeoutHandle = NULL;
 static TimerHandle_t xTransmitHandle = NULL;
+static TimerHandle_t xSomeReceiveProcHandle = NULL;
+static TimerHandle_t xSomeTransmitProcHandle = NULL;
 
 /* The service routine for the (simulated) interrupt.  This is the interrupt
 that the task will be synchronized with. */
 static uint32_t ulExampleInterruptHandler(void);
 static void sntpRXtimer_callback(TimerHandle_t timer);
 static void transmitTimer_callback(TimerHandle_t timer);
+static void someAnotherRXTXprocessTimer_callback(TimerHandle_t timer);
+static void someProcessInitReset(void);
+
+typedef struct {
+	uint8_t retry;
+	uint8_t transmitting;
+	uint8_t receiving;
+}somePcb_t;
+somePcb_t somePcb;
 
 /*-----------------------------------------------------------*/
 
@@ -101,6 +112,8 @@ int main( void )
 	xTaskCreate(vPacketSendRecvStartProcessTask, "PacketSendRecvStartProcess Task", 1000, NULL, 1, NULL );
 	xSNTP_RXTimeoutHandle = xTimerCreate((char *)"SNTP_RecvTimer", 200, ONE_SHOT_TIMER, &xSNTP_RXTimeoutHandle, sntpRXtimer_callback);
 	xTransmitHandle = xTimerCreate((char*)"TransmitTimer", 1000, PERIODIC_TIMER, 0, transmitTimer_callback);
+	xSomeTransmitProcHandle = xTimerCreate("Some transmitt process timer", 100, PERIODIC_TIMER, &xSomeTransmitProcHandle, someAnotherRXTXprocessTimer_callback);
+	xSomeReceiveProcHandle = xTimerCreate("Some receive process timer", 700, ONE_SHOT_TIMER, &xSomeReceiveProcHandle, someAnotherRXTXprocessTimer_callback);
 	if (xSNTP_RXTimeoutHandle == NULL) {
 		; //bad
 	}else{
@@ -113,6 +126,7 @@ int main( void )
 	vPortSetInterruptHandler(mainINTERRUPT_NUMBER, ulExampleInterruptHandler);
 	xTimerStart(xSNTP_RXTimeoutHandle, 0);
 	xTimerStart(xTransmitHandle, 0);
+	someProcessInitReset();
 
 	/* Start the scheduler to start the tasks executing. */
 	vTaskStartScheduler();	
@@ -156,6 +170,10 @@ volatile uint32_t ul;
 		vPrintString( pcTaskName );
 
 		vTaskDelay(50);
+		if (somePcb.transmitting == 0) {
+			xTimerStart(xSomeTransmitProcHandle, 0);
+			somePcb.transmitting = 1;
+		}
 	}
 }
 
@@ -184,7 +202,11 @@ static uint32_t ulExampleInterruptHandler(void)
 static void sntpRXtimer_callback(TimerHandle_t timer)
 {
 	if (timer != NULL) {
-		vPrintString("SNTP Timer ring!\n");
+		void* timHandle;
+		timHandle = pvTimerGetTimerID(timer);
+		if (timHandle) {
+			vPrintString("SNTP Timer ring!\n");
+		}
 	}
 	//else
 		//;//bad!
@@ -195,6 +217,34 @@ static void transmitTimer_callback(TimerHandle_t timer)
 	vPrintString("transmitting!\n");
 	xTimerStart(xSNTP_RXTimeoutHandle, 0);
 	//xTimerReset(xSNTP_RXTimeoutHandle, 0); //alternative
+}
+
+static void someAnotherRXTXprocessTimer_callback(TimerHandle_t timer)
+{
+	if (timer != NULL) {		
+		if (timer == xSomeTransmitProcHandle) {
+			somePcb.transmitting = 1;
+			somePcb.retry--;
+			vPrintString("some Transmit process!\n");
+			if (somePcb.retry == 0) {
+				xTimerStop(xSomeTransmitProcHandle, 0);
+				xTimerStart(xSomeReceiveProcHandle, 0);
+			}
+		}
+		else if (timer == xSomeReceiveProcHandle) {
+			somePcb.receiving = 1;
+			somePcb.transmitting = 0;
+			vPrintString("some Receiving process!\n");
+			someProcessInitReset();
+			//xTimerStop(xSomeTransmitProcHandle, 0);
+		}
+	}
+
+}
+
+static void someProcessInitReset(void) {
+	memset(&somePcb, 0, sizeof(somePcb));
+	somePcb.retry = 3;
 }
 
 int CreateSomeAnotherTasks(uint8_t tasksQnty)

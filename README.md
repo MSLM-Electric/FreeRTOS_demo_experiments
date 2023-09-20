@@ -6,3 +6,4 @@ go to the folder "Debug/" and open "/FreeRTOS_demo_experiments.exe"
 
 To see the various examples go to the folder "/ExamplesAndExperiments/ ... chose your desired example".
 Every examples has itself "main.c" source file and it demonstration ".exe".
+You can download your desired demo "*.exe"  by clicking "Download raw file" and run it.

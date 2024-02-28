@@ -1,0 +1,32 @@
+Create a big queue/message/mail variable.
+
+queue: (for example 5 objects)
+___________________________________________________________________________________________________________________
+   NULL      | task1message | task2message | criticalStackAllocatedAtTask3message | task7message |  task10message  |
+_____________|______________|______________|______________________________________|______________|_________________|
+
+RTOSDebuggerTask() {
+
+MessageWait(queue, portMAXDelay);
+}
+
+task1(){
+
+MessagePut(queue, x)
+}
+
+...
+
+task3(){
+
+MessagePut(queue, x)
+}
+
+
+Handle and show the allocated stacks on all tasks on RTOSDebuggerTask() {;}
+If the message putting doesn't happend on the task cause of long running of some task, then indicate it too
+(as a bad performanced/performed "task made")
+
+
+
+NOT IMPLEMENTED YET. JUST SOME REFLECTIONS.

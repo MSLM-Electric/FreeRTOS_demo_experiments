@@ -12,6 +12,7 @@ ExamplesAndExperiments/DifferentTimersWithOneCallback/mainLastSwitched.c
 !*.json
 !*.gitignore
 !*.txt
+!*.md
 !Debug/*.exe
 !Release/*.exe
 f

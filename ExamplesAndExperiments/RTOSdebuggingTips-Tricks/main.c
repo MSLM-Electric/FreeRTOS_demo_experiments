@@ -77,7 +77,7 @@ to the application. */
 /* The task functions. */
 void vPacketTimeoutTask( void *pvParameters );
 void vPacketSendRecvStartProcessTask( void *pvParameters );
-void smBuggyTaskWhichNotCatched(void *pvParameters);
+void smBuggyTaskWhichNotCatched(const void *pvParameters);
 void smBuggyTaskWhichSuccesfullyDetected(void *pvParameters);
 static U32_ms osKernelSysTick(void);
 /* The software timer used to turn the backlight off. */
@@ -115,7 +115,11 @@ int main( void )
 
 	/* Create the other task in exactly the same way. */
 	xTaskCreate(vPacketSendRecvStartProcessTask, "PacketSendRecvStartProcess Task", 1000, NULL, 1, NULL );
-	xTaskCreate(smBuggyTaskWhichNotCatched, "Buggy task 1", 100, NULL, 1, NULL);
+	for (uint8_t u = 0; u < 6; u++) {
+		char taskName[] = "Buggy task N";
+		taskName[/*11*/strlen(taskName) - 1] = 0x30 + u;
+		xTaskCreate(smBuggyTaskWhichNotCatched, taskName, 200, &taskName[strlen(taskName)-1], 1, NULL);
+	}
 	xTaskCreate(smBuggyTaskWhichSuccesfullyDetected, "Buggy task 2 which detected", 100, NULL, 1, NULL);
 	xSNTP_RXTimeoutHandle = xTimerCreate((char *)"SNTP_RecvTimer", 200, ONE_SHOT_TIMER, &xSNTP_RXTimeoutHandle, sntpRXtimer_callback);
 	xTransmitHandle = xTimerCreate((char*)"TransmitTimer", 1000, PERIODIC_TIMER, 0, transmitTimer_callback);
@@ -184,21 +188,29 @@ volatile uint32_t ul;
 	}
 }
 
-void smBuggyTaskWhichNotCatched(void *pvParameters)
+//#include <stdio.h>
+
+void smBuggyTaskWhichNotCatched(const void *pvParameters)
 {
-	const char *pcTaskName = "some Buggy Task running which can't handle running\r\n";
+	char* pcTaskName = "Buggy Task N";
+	uint8_t taskID = *(const uint8_t*)pvParameters;
+	pcTaskName[strlen(pcTaskName) - 1] = taskID;
+	const char *additnstr = " running which can't handle running";
+	//const char* taskInfo[40];
+	
 	volatile uint32_t ul;
 	
 	for(;;)
 	{
-		vPrintString( pcTaskName );
-		
+		vPrintTwoStrings( pcTaskName, additnstr );
+		ul = taskID;
 		vTaskDelay(10);
 		uint8_t someBuggyFlag = 1;
-		while(someBuggyFlag)
+		while(someBuggyFlag != 0)
 		{
-			vTaskDelay(1);
+			vTaskDelay(500);
 			someBuggyFlag = 2;//ooooh, we're stuck here, but we couldn't looking for this bug.
+			vPrintTwoStrings(pcTaskName, "get stuck!");
 		}
 	}
 }

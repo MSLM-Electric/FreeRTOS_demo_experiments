@@ -1,0 +1,17 @@
+*.[oa]
+*.*
+*.sln
+*.vcxproj
+.vs
+Debug
+TempRsrv
+ExamplesAndExperiments/TaskExecuteLogger
+ExamplesAndExperiments/DifferentTimersWithOneCallback/mainLastSwitched.c
+!*.c
+!*.h
+!*.json
+!*.gitignore
+!*.txt
+!Debug/*.exe
+!Release/*.exe
+f

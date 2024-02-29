@@ -78,7 +78,9 @@ to the application. */
 void vPacketTimeoutTask( void *pvParameters );
 void vPacketSendRecvStartProcessTask( void *pvParameters );
 void smBuggyTaskWhichNotCatched(const void *pvParameters);
-void smBuggyTaskWhichSuccesfullyDetected(void *pvParameters);
+void smBuggyTask2WhichSuccesfullyDetected(void *pvParameters);
+void smBuggyTask3WhichSuccesfullyDetected(void* pvParameters);
+void HardwareTimerInterruption_Immitate(void* pvParameters);
 //static U32_ms osKernelSysTick(void);
 
 /* The software timer used to turn the backlight off. */
@@ -91,6 +93,7 @@ static /*or extern*/ BitLoggerList_t BugsBitList;
 /* The service routine for the (simulated) interrupt.  This is the interrupt
 that the task will be synchronized with. */
 static uint32_t ulExampleInterruptHandler(void);
+static uint32_t ulTimerInterruptHandler(void);
 static void sntpRXtimer_callback(TimerHandle_t timer);
 static void transmitTimer_callback(TimerHandle_t timer);
 static void someAnotherRXTXprocessTimer_callback(TimerHandle_t timer);
@@ -122,7 +125,9 @@ int main( void )
 		taskName[/*11*/strlen(taskName) - 1] = 0x30 + u;
 		xTaskCreate(smBuggyTaskWhichNotCatched, taskName, 200, &taskName[strlen(taskName)-1], 1, NULL);
 	}
-	xTaskCreate(smBuggyTaskWhichSuccesfullyDetected, "Buggy task 2 which detected", 100, NULL, 1, NULL);
+	xTaskCreate(smBuggyTask2WhichSuccesfullyDetected, "Buggy task 2 which detected", 100, NULL, 1, NULL);
+	xTaskCreate(smBuggyTask3WhichSuccesfullyDetected, "Buggy task 3 which detected", 100, NULL, 1, NULL);
+	xTaskCreate(HardwareTimerInterruption_Immitate, "Timer Interrupt", 100, NULL, 1, NULL);
 	InitBitLoggerList(&BugsBitList);
 	xSNTP_RXTimeoutHandle = xTimerCreate((char *)"SNTP_RecvTimer", 200, ONE_SHOT_TIMER, &xSNTP_RXTimeoutHandle, sntpRXtimer_callback);
 	xTransmitHandle = xTimerCreate((char*)"TransmitTimer", 1000, PERIODIC_TIMER, 0, transmitTimer_callback);
@@ -138,6 +143,7 @@ int main( void )
 		shown here can only be used with the FreeRTOS Windows port, where such
 		interrupts are only simulated. */
 	vPortSetInterruptHandler(mainINTERRUPT_NUMBER, ulExampleInterruptHandler);
+	vPortSetInterruptHandler(mainINTERRUPT_NUMBER, ulTimerInterruptHandler);
 	xTimerStart(xSNTP_RXTimeoutHandle, 0);
 	xTimerStart(xTransmitHandle, 0);
 	someProcessInitReset();
@@ -208,18 +214,19 @@ void smBuggyTaskWhichNotCatched(const void *pvParameters)
 		vPrintTwoStrings( pcTaskName, additnstr );
 		ul = taskID;
 		vTaskDelay(10);
-		uint8_t someBuggyFlag = 1;
+		volatile uint8_t someBuggyFlag = 1;
 		while(someBuggyFlag != 0)
 		{
 			vTaskDelay(500);
-			someBuggyFlag = 2;//ooooh, we're stuck here, but we couldn't looking for this bug.
+			someBuggyFlag;//ooooh, we're stuck here, but we couldn't looking for this bug.
 			vPrintTwoStrings(pcTaskName, "get stuck!");
-			SetBitToLoggerList(NULL, &BugsBitList); //nothing happens, we pretend that we don't know about stucking process on here.
+			SetBitToLoggerList(NULL, &BugsBitList); //nothing happens, 
+			//we pretend that we don't know about stucking process right on here (on this section).
 		}
 	}
 }
 
-void smBuggyTaskWhichSuccesfullyDetected(void *pvParameters)
+void smBuggyTask2WhichSuccesfullyDetected(void *pvParameters)
 {
 	const char *pcTaskName = "some Buggy Task running, but we're would found it bug\r\n";
 	volatile uint32_t ul;
@@ -229,20 +236,32 @@ void smBuggyTaskWhichSuccesfullyDetected(void *pvParameters)
 		vPrintString( pcTaskName );
 		
 		vTaskDelay(10);
-		uint8_t buggytime = 1;
+		volatile uint8_t buggytime = 1;
 
 		/* The Mr. Bug Inspector! */ //INSPC.1.) Put Inspector code to detect the kuking bug
-		ResetSpecBitOnLoggerList(BIT(4), &BugsBitList); // 
+		ResetSpecBitOnLoggerList(BIT(4), &BugsBitList); //?! you may not write this line even 
 		/* The Mr. Bug Inspector --------------------------------------------------------- */
 
 		while(buggytime)
 		{
 			vTaskDelay(1);
-			buggytime = 2;//ooooh, we're stuck here, but we couldn't looking for this bug...
+			buggytime;//ooooh, we're stuck here, but we couldn't looking for this bug...
 
 			/* The Mr. Bug Inspector in action ------ */  //INSPC.2.) and put here this too!
 			SetBitToLoggerList(BIT(4), &BugsBitList);
-			    //... no, brotha! We found this bug and kick it pass to the calling functions stack memory (to do it set the breakpoint inside this func. and look at calling stack)! 
+		}
+	}
+}
+
+void smBuggyTask3WhichSuccesfullyDetected(void* pvParameters) {
+	volatile uint32_t ul;
+
+	for (;;) {
+		volatile delayTime = 10;
+		vTaskDelay(10);
+		while (1) {
+			vTaskDelay(delayTime);
+			SetBitToLoggerList(BIT(20), &BugsBitList);
 		}
 	}
 }
@@ -267,6 +286,24 @@ static uint32_t ulExampleInterruptHandler(void)
 	portYIELD_FROM_ISR() used by the Windows port includes a return statement,
 	which is why this function does not explicitly return a value. */
 	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+static uint32_t ulTimerInterruptHandler(void)
+{
+	BaseType_t xHigherPriorityTaskWoken;
+	xHigherPriorityTaskWoken = pdFALSE;
+
+	BitLoggerList(&BugsBitList);
+
+	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+void HardwareTimerInterruption_Immitate(void* pvParameters)
+{
+	for (;;) {
+		vTaskDelay(1);
+		ulTimerInterruptHandler();
+	}
 }
 
 static void sntpRXtimer_callback(TimerHandle_t timer)

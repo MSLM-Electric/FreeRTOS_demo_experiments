@@ -298,7 +298,7 @@ static uint32_t ulTimerInterruptHandler(void)
 	xHigherPriorityTaskWoken = pdFALSE;
 
 	if(IsTimerWPRinging(&BugScannerTimer)){
-		BitLoggerList(&BugsBitList);
+		uint32_t bugbitInfo = BitLoggerList(&BugsBitList); //in here you're get the info that BIT(4) and BIT(20) enabled.
 		RestartTimerWP(&BugScannerTimer);
 	}
 

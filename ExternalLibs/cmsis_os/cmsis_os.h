@@ -116,6 +116,8 @@
 	/* Defaults to 1 for backward compatibility. */
 #define configSUPPORT_DYNAMIC_ALLOCATION 1
 #endif
+
+#define configINITIAL_TICK_COUNT 0
 /***FreeRTOS.h****/
 
 /// Entry point of a thread.
@@ -141,15 +143,6 @@ typedef enum {
 	osPriorityError = 0x84        ///< system cannot determine priority or thread has illegal priority
 } osPriority;
 
-#if( configSUPPORT_STATIC_ALLOCATION == 1 )
-
-typedef StaticTask_t               osStaticThreadDef_t;
-//typedef StaticTimer_t              osStaticTimerDef_t;
-//typedef StaticSemaphore_t          osStaticMutexDef_t;
-//typedef StaticSemaphore_t          osStaticSemaphoreDef_t;
-//typedef StaticQueue_t              osStaticMessageQDef_t;
-
-#endif
 
 /*from FreeRTOS.h*/
 
@@ -230,6 +223,16 @@ typedef struct xSTATIC_TCB
 #endif
 
 } StaticTask_t;
+
+#if( configSUPPORT_STATIC_ALLOCATION == 1 )
+
+typedef StaticTask_t               osStaticThreadDef_t;
+//typedef StaticTimer_t              osStaticTimerDef_t;
+//typedef StaticSemaphore_t          osStaticMutexDef_t;
+//typedef StaticSemaphore_t          osStaticSemaphoreDef_t;
+//typedef StaticQueue_t              osStaticMessageQDef_t;
+
+#endif
 /***FreeRTOS.h****/
 
 /// Thread Definition structure contains startup information of a thread.

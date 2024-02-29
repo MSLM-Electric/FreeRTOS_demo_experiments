@@ -61,7 +61,7 @@
 /* Demo includes. */
 #include "supporting_functions.h"
 
-#include "../../ExternalLibs/SimpleTimer/SimpleTimerWP.h"
+#include "../../../ExternalLibs/BitLogger/BitLogger.h"
 
 /* Used as a loop counter to create a very crude delay. */
 #define mainDELAY_LOOP_COUNT		( 0xffffff )
@@ -79,12 +79,14 @@ void vPacketTimeoutTask( void *pvParameters );
 void vPacketSendRecvStartProcessTask( void *pvParameters );
 void smBuggyTaskWhichNotCatched(const void *pvParameters);
 void smBuggyTaskWhichSuccesfullyDetected(void *pvParameters);
-static U32_ms osKernelSysTick(void);
+//static U32_ms osKernelSysTick(void);
+
 /* The software timer used to turn the backlight off. */
 static TimerHandle_t xSNTP_RXTimeoutHandle = NULL;
 static TimerHandle_t xTransmitHandle = NULL;
 static TimerHandle_t xSomeReceiveProcHandle = NULL;
 static TimerHandle_t xSomeTransmitProcHandle = NULL;
+static /*or extern*/ BitLoggerList_t BugsBitList;
 
 /* The service routine for the (simulated) interrupt.  This is the interrupt
 that the task will be synchronized with. */
@@ -121,6 +123,7 @@ int main( void )
 		xTaskCreate(smBuggyTaskWhichNotCatched, taskName, 200, &taskName[strlen(taskName)-1], 1, NULL);
 	}
 	xTaskCreate(smBuggyTaskWhichSuccesfullyDetected, "Buggy task 2 which detected", 100, NULL, 1, NULL);
+	InitBitLoggerList(&BugsBitList);
 	xSNTP_RXTimeoutHandle = xTimerCreate((char *)"SNTP_RecvTimer", 200, ONE_SHOT_TIMER, &xSNTP_RXTimeoutHandle, sntpRXtimer_callback);
 	xTransmitHandle = xTimerCreate((char*)"TransmitTimer", 1000, PERIODIC_TIMER, 0, transmitTimer_callback);
 	xSomeTransmitProcHandle = xTimerCreate("Some transmitt process timer", 100, PERIODIC_TIMER, &xSomeTransmitProcHandle, someAnotherRXTXprocessTimer_callback);
@@ -211,6 +214,7 @@ void smBuggyTaskWhichNotCatched(const void *pvParameters)
 			vTaskDelay(500);
 			someBuggyFlag = 2;//ooooh, we're stuck here, but we couldn't looking for this bug.
 			vPrintTwoStrings(pcTaskName, "get stuck!");
+			SetBitToLoggerList(NULL, &BugsBitList); //nothing happens, we pretend that we don't know about stucking process on here.
 		}
 	}
 }
@@ -228,10 +232,7 @@ void smBuggyTaskWhichSuccesfullyDetected(void *pvParameters)
 		uint8_t buggytime = 1;
 
 		/* The Mr. Bug Inspector! */ //INSPC.1.) Put Inspector code to detect the kuking bug
-		Timerwp_t bugmeter;
-		memset(&bugmeter, 0, sizeof(bugmeter));
-		InitTimerWP(&bugmeter, (tickptr_fn *)osKernelSysTick);
-		LaunchTimerWP((U32_ms)10000, &bugmeter);
+		ResetSpecBitOnLoggerList(BIT(4), &BugsBitList); // 
 		/* The Mr. Bug Inspector --------------------------------------------------------- */
 
 		while(buggytime)
@@ -240,8 +241,8 @@ void smBuggyTaskWhichSuccesfullyDetected(void *pvParameters)
 			buggytime = 2;//ooooh, we're stuck here, but we couldn't looking for this bug...
 
 			/* The Mr. Bug Inspector in action ------ */  //INSPC.2.) and put here this too!
-			if (IsTimerWPRinging(&bugmeter))
-				catchBreakPoint(&buggytime);    //... no, brotha! We found this bug and kick it pass to the calling functions stack memory (to do it set the breakpoint inside this func. and look at calling stack)! 
+			SetBitToLoggerList(BIT(4), &BugsBitList);
+			    //... no, brotha! We found this bug and kick it pass to the calling functions stack memory (to do it set the breakpoint inside this func. and look at calling stack)! 
 		}
 	}
 }
@@ -321,9 +322,9 @@ int CreateSomeAnotherTasks(uint8_t tasksQnty)
 	return 0;
 }
 
-static U32_ms osKernelSysTick(void)
+/*static U32_ms osKernelSysTick(void)
 {
 #ifdef DEBUG_ON_VS
 	return (U32_ms)GetTickCount();
 #endif
-}
+}*/

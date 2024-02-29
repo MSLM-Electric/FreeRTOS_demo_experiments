@@ -9,6 +9,8 @@ typedef struct {
 	uint32_t cntr32bit[32]; //4x32 = 128bytes
 	uint32_t _tempCntr[32]; //128bytes  //for 32bit logging signals we waste the 260bytes. mb there are solvings on another way.
 	uint32_t Q32bit;
+	//Timerwp_t BugScannerTimer; //StuckScannerTimer  sounds better//?
+	//u32 filterCntr32bit[4]; //?
 }BitLoggerList_t;
 
 void InitBitLoggerList(BitLoggerList_t* BitLogger);

@@ -5,18 +5,21 @@ void InitBitLoggerList(BitLoggerList_t* BitLogger)
 {
 	memset(BitLogger->cntr32bit, 0, sizeof(BitLogger->cntr32bit));
 	memset(BitLogger->_tempCntr, 0, sizeof(BitLogger->_tempCntr));
+	//You may init here the simple timer and Launch
 	return;
 }
 
 uint32_t BitLoggerList(BitLoggerList_t *BitLogger)
 {
+	//if(IsTimerWPRinging(BitLogger->BugScannerTimer)){
 	for (uint32_t u = 0; u < 32; u++) {
-		if(BitLogger->cntr32bit[u] > BitLogger->_tempCntr[u])
+		if(BitLogger->cntr32bit[u] != BitLogger->_tempCntr[u])
 			BitLogger->Q32bit |= BIT(u);
 		else
 			BitLogger->Q32bit &= ~BIT(u);
 		BitLogger->_tempCntr[u] = BitLogger->cntr32bit[u];
 	}
+	//}
 	return BitLogger->Q32bit;
 }
 

@@ -62,6 +62,7 @@
 #include "supporting_functions.h"
 
 #include "../../../ExternalLibs/BitLogger/BitLogger.h"
+#include "../../../ExternalLibs/SimpleTimer/SimpleTimerWP.h"
 
 /* Used as a loop counter to create a very crude delay. */
 #define mainDELAY_LOOP_COUNT		( 0xffffff )
@@ -81,7 +82,7 @@ void smBuggyTaskWhichNotCatched(const void *pvParameters);
 void smBuggyTask2WhichSuccesfullyDetected(void *pvParameters);
 void smBuggyTask3WhichSuccesfullyDetected(void* pvParameters);
 void HardwareTimerInterruption_Immitate(void* pvParameters);
-//static U32_ms osKernelSysTick(void);
+static U32_ms osKernelSysTick(void);
 
 /* The software timer used to turn the backlight off. */
 static TimerHandle_t xSNTP_RXTimeoutHandle = NULL;
@@ -89,6 +90,7 @@ static TimerHandle_t xTransmitHandle = NULL;
 static TimerHandle_t xSomeReceiveProcHandle = NULL;
 static TimerHandle_t xSomeTransmitProcHandle = NULL;
 static /*or extern*/ BitLoggerList_t BugsBitList;
+static Timerwp_t BugScannerTimer;
 
 /* The service routine for the (simulated) interrupt.  This is the interrupt
 that the task will be synchronized with. */
@@ -129,6 +131,8 @@ int main( void )
 	xTaskCreate(smBuggyTask3WhichSuccesfullyDetected, "Buggy task 3 which detected", 100, NULL, 1, NULL);
 	xTaskCreate(HardwareTimerInterruption_Immitate, "Timer Interrupt", 100, NULL, 1, NULL);
 	InitBitLoggerList(&BugsBitList);
+	InitTimerWP(&BugScannerTimer, (tickptr_fn*)osKernelSysTick);
+	LaunchTimerWP((U32_ms)2000, &BugScannerTimer);  //For long processes the delay setting value should be longer/big value too! (For example 10s, 20s)
 	xSNTP_RXTimeoutHandle = xTimerCreate((char *)"SNTP_RecvTimer", 200, ONE_SHOT_TIMER, &xSNTP_RXTimeoutHandle, sntpRXtimer_callback);
 	xTransmitHandle = xTimerCreate((char*)"TransmitTimer", 1000, PERIODIC_TIMER, 0, transmitTimer_callback);
 	xSomeTransmitProcHandle = xTimerCreate("Some transmitt process timer", 100, PERIODIC_TIMER, &xSomeTransmitProcHandle, someAnotherRXTXprocessTimer_callback);
@@ -236,7 +240,7 @@ void smBuggyTask2WhichSuccesfullyDetected(void *pvParameters)
 		vPrintString( pcTaskName );
 		
 		vTaskDelay(10);
-		volatile uint8_t buggytime = 1;
+		volatile static uint8_t buggytime = 1;
 
 		/* The Mr. Bug Inspector! */ //INSPC.1.) Put Inspector code to detect the kuking bug
 		ResetSpecBitOnLoggerList(BIT(4), &BugsBitList); //?! you may not write this line even 
@@ -293,7 +297,10 @@ static uint32_t ulTimerInterruptHandler(void)
 	BaseType_t xHigherPriorityTaskWoken;
 	xHigherPriorityTaskWoken = pdFALSE;
 
-	BitLoggerList(&BugsBitList);
+	if(IsTimerWPRinging(&BugScannerTimer)){
+		BitLoggerList(&BugsBitList);
+		RestartTimerWP(&BugScannerTimer);
+	}
 
 	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
@@ -359,9 +366,9 @@ int CreateSomeAnotherTasks(uint8_t tasksQnty)
 	return 0;
 }
 
-/*static U32_ms osKernelSysTick(void)
+static U32_ms osKernelSysTick(void)
 {
 #ifdef DEBUG_ON_VS
 	return (U32_ms)GetTickCount();
 #endif
-}*/
+}

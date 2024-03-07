@@ -1,3 +1,26 @@
+/*MIT License
+
+Copyright(c) 2024 MSLM Electric / Osim Abdulhamidov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this softwareand associated documentation files(the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and /or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions :
+
+The above copyright noticeand this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.*/
+
+
 #include "BitLogger.h"
 #include <string.h> //only for memset
 
@@ -12,7 +35,8 @@ void InitBitLoggerList(BitLoggerList_t* BitLogger)
 uint32_t BitLoggerList(BitLoggerList_t *BitLogger)
 {
 	//if(IsTimerWPRinging(BitLogger->BugScannerTimer)){
-	for (uint32_t u = 0; u < 32; u++) {
+	//RestartTimerWP(BitLogger->BugScannerTimer);
+	for (uint8_t u = 0; u < 32; u++) {
 		if(BitLogger->cntr32bit[u] != BitLogger->_tempCntr[u])
 			BitLogger->Q32bit |= BIT(u);
 		else
@@ -50,7 +74,7 @@ void SetBitToLoggerList(uint32_t inputBITx, BitLoggerList_t* BitLogger)
 
 void ResetSpecBitOnLoggerList(uint32_t inputBITx, BitLoggerList_t* BitLogger)
 {
-	uint32_t u;
+	uint8_t u;
 	for (u = 0; u < 32; u++)
 	{
 		if (inputBITx & BIT(u))

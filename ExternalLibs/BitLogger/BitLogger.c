@@ -32,7 +32,7 @@ void InitBitLoggerList(BitLoggerList_t* BitLogger)
 	return;
 }
 
-uint32_t BitLoggerList(BitLoggerList_t *BitLogger)
+uint32_t BitLoggerList(BitLoggerList_t *BitLogger)  //InspectBitLoggerList //? mb on here sounds better?
 {
 	//if(IsTimerWPRinging(BitLogger->BugScannerTimer)){
 	//RestartTimerWP(BitLogger->BugScannerTimer);
@@ -54,9 +54,9 @@ it seems to us that our task where while(...) ops located is not allocated even 
 has been deleted or corrupted or stack/memory overflow allocated. This func. helps to not confuse
 and first of all where while(...) -like ops located put this to there and use BitLoggerList(...)
 on Timer Interrupt Handler section to know why some tasks are stucked and where. I hope you'll enjoy.
-Look the example at main.c as a reference to guidance. I admit that its not deeply and confidently
-tested. But it is for while I hope!*/
-void SetBitToLoggerList(uint32_t inputBITx, BitLoggerList_t* BitLogger)
+Look the example at FreeRTOS_demo_experiments\ExamplesAndExperiments\RTOSdebuggingTips-Tricks\FindingBugWithBitLoggerList\main.c 
+as a reference to guidance. I admit that its not deeply and confidently tested. But it is for while I hope!*/
+void SetBitToLoggerList(uint32_t inputBITx, BitLoggerList_t* BitLogger) //InspectBitToLoggerList //?sounds better?
 {
 	uint32_t signal = 0;
 	for (uint8_t u = 0; u < 32; u++)
@@ -64,6 +64,7 @@ void SetBitToLoggerList(uint32_t inputBITx, BitLoggerList_t* BitLogger)
 		signal = BIT(u) & inputBITx;
 		if (signal) {
 			BitLogger->cntr32bit[u]++;
+			break;
 			//BitLogger->Q32bit |= BIT(u);
 		}/*else {
 			BitLogger->Q32bit &= ~BIT(u);
@@ -77,11 +78,11 @@ void ResetSpecBitOnLoggerList(uint32_t inputBITx, BitLoggerList_t* BitLogger)
 	uint8_t u;
 	for (u = 0; u < 32; u++)
 	{
-		if (inputBITx & BIT(u))
-			break;
+		if (inputBITx & BIT(u)) {
+			BitLogger->cntr32bit[u] = 0;
+			BitLogger->_tempCntr[u] = 0;
+			BitLogger->Q32bit &= ~inputBITx;
+		}
 	}
-	BitLogger->cntr32bit[u] = 0;
-	BitLogger->_tempCntr[u] = 0;
-	BitLogger->Q32bit &= ~inputBITx;
 	return;
 }

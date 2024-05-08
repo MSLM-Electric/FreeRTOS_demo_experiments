@@ -6,7 +6,6 @@
 Debug
 TempRsrv
 ExamplesAndExperiments/TaskExecuteLogger
-ExamplesAndExperiments/DifferentTimersWithOneCallback/mainLastSwitched.c
 !*.c
 !*.h
 !*.json
@@ -15,4 +14,5 @@ ExamplesAndExperiments/DifferentTimersWithOneCallback/mainLastSwitched.c
 !*.md
 !Debug/*.exe
 !Release/*.exe
+ExamplesAndExperiments/DifferentTimersWithOneCallback/mainLastSwitched.c
 f

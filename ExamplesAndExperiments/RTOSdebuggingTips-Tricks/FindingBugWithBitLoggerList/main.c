@@ -110,7 +110,7 @@ somePcb_t somePcb;
 
 /*-----------------------------------------------------------*/
 
-int main( void )
+int main( int argc, char **argv  )
 {
 	/* Create one of the two tasks. */
 	xTaskCreate(vPacketTimeoutTask,		/* Pointer to the function that implements the task. */

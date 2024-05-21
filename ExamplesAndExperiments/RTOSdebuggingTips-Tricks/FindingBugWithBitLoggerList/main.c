@@ -76,19 +76,13 @@ to the application. */
 #define PERIODIC_TIMER 1
 
 /* The task functions. */
-void vPacketTimeoutTask( void *pvParameters );
-void vPacketSendRecvStartProcessTask( void *pvParameters );
+void vSomeAnotherTask( void *pvParameters );
 void smBuggyTaskWhichNotCatched(const void *pvParameters);
 void smBuggyTask2WhichSuccesfullyDetected(void *pvParameters);
 void smBuggyTask3WhichSuccesfullyDetected(void* pvParameters);
 void HardwareTimerInterruption_Immitate(void* pvParameters);
 static U32_ms osKernelSysTick(void);
 
-/* The software timer used to turn the backlight off. */
-static TimerHandle_t xSNTP_RXTimeoutHandle = NULL;
-static TimerHandle_t xTransmitHandle = NULL;
-static TimerHandle_t xSomeReceiveProcHandle = NULL;
-static TimerHandle_t xSomeTransmitProcHandle = NULL;
 static /*or extern*/ BitLoggerList_t BugsBitList;
 static Timerwp_t BugScannerTimer;
 
@@ -96,24 +90,13 @@ static Timerwp_t BugScannerTimer;
 that the task will be synchronized with. */
 static uint32_t ulExampleInterruptHandler(void);
 static uint32_t ulTimerInterruptHandler(void);
-static void sntpRXtimer_callback(TimerHandle_t timer);
-static void transmitTimer_callback(TimerHandle_t timer);
-static void someAnotherRXTXprocessTimer_callback(TimerHandle_t timer);
-static void someProcessInitReset(void);
-
-typedef struct {
-	uint8_t retry;
-	uint8_t transmitting;
-	uint8_t receiving;
-}somePcb_t;
-somePcb_t somePcb;
 
 /*-----------------------------------------------------------*/
 
 int main( int argc, char **argv  )
 {
 	/* Create one of the two tasks. */
-	xTaskCreate(vPacketTimeoutTask,		/* Pointer to the function that implements the task. */
+	xTaskCreate(vSomeAnotherTask,		/* Pointer to the function that implements the task. */
 					"PacketTimeout Task",	/* Text name for the task.  This is to facilitate debugging only. */
 					1000,		/* Stack depth - most small microcontrollers will use much less stack than this. */
 					NULL,		/* We are not using the task parameter. */
@@ -121,7 +104,6 @@ int main( int argc, char **argv  )
 					NULL );		/* We are not using the task handle. */
 
 	/* Create the other task in exactly the same way. */
-	xTaskCreate(vPacketSendRecvStartProcessTask, "PacketSendRecvStartProcess Task", 1000, NULL, 1, NULL );
 	for (uint8_t u = 0; u < 6; u++) {
 		char taskName[] = "Buggy task N";
 		taskName[/*11*/strlen(taskName) - 1] = 0x30 + u;
@@ -133,24 +115,13 @@ int main( int argc, char **argv  )
 	InitBitLoggerList(&BugsBitList);
 	InitTimerWP(&BugScannerTimer, (tickptr_fn*)osKernelSysTick);
 	LaunchTimerWP((U32_ms)2000, &BugScannerTimer);  //For long processes the delay setting value should be longer/big value too! (For example 10s, 20s)
-	xSNTP_RXTimeoutHandle = xTimerCreate((char *)"SNTP_RecvTimer", 200, ONE_SHOT_TIMER, &xSNTP_RXTimeoutHandle, sntpRXtimer_callback);
-	xTransmitHandle = xTimerCreate((char*)"TransmitTimer", 1000, PERIODIC_TIMER, 0, transmitTimer_callback);
-	xSomeTransmitProcHandle = xTimerCreate("Some transmitt process timer", 100, PERIODIC_TIMER, &xSomeTransmitProcHandle, someAnotherRXTXprocessTimer_callback);
-	xSomeReceiveProcHandle = xTimerCreate("Some receive process timer", 700, ONE_SHOT_TIMER, &xSomeReceiveProcHandle, someAnotherRXTXprocessTimer_callback);
-	if (xSNTP_RXTimeoutHandle == NULL) {
-		; //bad
-	}else{
-		xTimerStop(xSNTP_RXTimeoutHandle, portMAX_DELAY);
-	}
+
 	/* Install the handler for the software interrupt.  The syntax necessary
 		to do this is dependent on the FreeRTOS port being used.  The syntax
 		shown here can only be used with the FreeRTOS Windows port, where such
 		interrupts are only simulated. */
 	vPortSetInterruptHandler(mainINTERRUPT_NUMBER, ulExampleInterruptHandler);
 	vPortSetInterruptHandler(mainINTERRUPT_NUMBER, ulTimerInterruptHandler);
-	xTimerStart(xSNTP_RXTimeoutHandle, 0);
-	xTimerStart(xTransmitHandle, 0);
-	someProcessInitReset();
 
 	/* Start the scheduler to start the tasks executing. */
 	vTaskStartScheduler();	
@@ -164,9 +135,9 @@ int main( int argc, char **argv  )
 }
 /*-----------------------------------------------------------*/
 
-void vPacketTimeoutTask( void *pvParameters )
+void vSomeAnotherTask( void *pvParameters )
 {
-const char *pcTaskName = "Task PacketTimeout is running\r\n";
+const char *pcTaskName = "Some another task running!\r\n";
 volatile uint32_t ul;
 
 	/* As per most tasks, this task is implemented in an infinite loop. */
@@ -177,29 +148,9 @@ volatile uint32_t ul;
 
 		/* Delay for a period. */
 		vTaskDelay(50);
-		//xTimerReset(xSNTP_RXTimeoutHandle, 0);
 	}
 }
 /*-----------------------------------------------------------*/
-
-void vPacketSendRecvStartProcessTask( void *pvParameters )
-{
-const char *pcTaskName = "Task PacketSendRecvStartProcess is running\r\n";
-volatile uint32_t ul;
-
-	/* As per most tasks, this task is implemented in an infinite loop. */
-	for( ;; )
-	{
-		/* Print out the name of this task. */
-		vPrintString( pcTaskName );
-
-		vTaskDelay(50);
-		if (somePcb.transmitting == 0) {
-			xTimerStart(xSomeTransmitProcHandle, 0);
-			somePcb.transmitting = 1;
-		}
-	}
-}
 
 //#include <stdio.h>
 
@@ -311,59 +262,6 @@ void HardwareTimerInterruption_Immitate(void* pvParameters)
 		vTaskDelay(1);
 		ulTimerInterruptHandler();
 	}
-}
-
-static void sntpRXtimer_callback(TimerHandle_t timer)
-{
-	if (timer != NULL) {
-		void* timHandle;
-		timHandle = pvTimerGetTimerID(timer);
-		if (timHandle) {
-			vPrintString("SNTP Timer ring!\n");
-		}
-	}
-	//else
-		//;//bad!
-}
-
-static void transmitTimer_callback(TimerHandle_t timer)
-{
-	vPrintString("transmitting!\n");
-	xTimerStart(xSNTP_RXTimeoutHandle, 0);
-	//xTimerReset(xSNTP_RXTimeoutHandle, 0); //alternative
-}
-
-static void someAnotherRXTXprocessTimer_callback(TimerHandle_t timer)
-{
-	if (timer != NULL) {		
-		if (timer == xSomeTransmitProcHandle) {
-			somePcb.transmitting = 1;
-			somePcb.retry--;
-			vPrintString("some Transmit process!\n");
-			if (somePcb.retry == 0) {
-				xTimerStop(xSomeTransmitProcHandle, 0);
-				xTimerStart(xSomeReceiveProcHandle, 0);
-			}
-		}
-		else if (timer == xSomeReceiveProcHandle) {
-			somePcb.receiving = 1;
-			somePcb.transmitting = 0;
-			vPrintString("some Receiving process!\n");
-			someProcessInitReset();
-			//xTimerStop(xSomeTransmitProcHandle, 0);
-		}
-	}
-
-}
-
-static void someProcessInitReset(void) {
-	memset(&somePcb, 0, sizeof(somePcb));
-	somePcb.retry = 3;
-}
-
-int CreateSomeAnotherTasks(uint8_t tasksQnty)
-{
-	return 0;
 }
 
 static U32_ms osKernelSysTick(void)
